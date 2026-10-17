@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#173b36">
+<title>Verdant Online — Creature Adventure</title>
+<style>
+:root{--ink:#18352f;--paper:#f7f0d8;--mint:#a9d8ad;--dark:#173b36;--gold:#f2c66d}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#142e2b;color:var(--paper);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+body{display:flex;align-items:center;justify-content:center;padding:12px}
+.app{width:min(1100px,100%);display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:12px}
+.game-shell{min-width:0;background:#234a40;border:4px solid #a9c49a;border-radius:12px;padding:8px;box-shadow:0 10px 0 #0d211f}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 4px 9px;font-size:12px;flex-wrap:wrap}
+.logo{font-weight:900;letter-spacing:1px;color:#f2d98a}.status{color:#b8dfc4}
+canvas{display:block;width:100%;aspect-ratio:768/528;image-rendering:pixelated;background:#85bd75;border:3px solid #102c28;border-radius:4px;touch-action:none}
+.controls{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 4px 2px}
+.dpad{display:grid;grid-template-columns:38px 38px 38px;grid-template-rows:34px 34px 34px;gap:3px}
+.dpad button,.action{background:#d9d0a9;color:#1b3932;border:2px solid #6b8065;border-radius:6px;font-weight:bold;box-shadow:0 3px 0 #101f1d;touch-action:manipulation}
+.dpad button:active,.action:active{transform:translateY(2px);box-shadow:0 1px 0 #101f1d}
+.dpad .up{grid-column:2}.dpad .left{grid-column:1;grid-row:2}.dpad .center{grid-column:2;grid-row:2;background:#879b79}.dpad .right{grid-column:3;grid-row:2}.dpad .down{grid-column:2;grid-row:3}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.action{padding:10px 12px}
+.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel{background:#f7f0d8;color:#1b3932;border:3px solid #a9c49a;border-radius:10px;padding:12px;box-shadow:0 5px 0 #0d211f}
+.panel h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px}.small{font-size:11px;line-height:1.5}.playerline{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:4px 0;border-bottom:1px dashed #c4c5a4}.online-dot{color:#267d52}
+.chatlog{height:160px;overflow:auto;font-size:11px;line-height:1.5;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}
+.chatrow{display:flex;gap:5px}.chatrow b{color:#33725b;white-space:nowrap}
+.chatform{display:flex;gap:5px;margin-top:8px}.chatform input,.nameform input{min-width:0;width:100%;padding:8px;border:2px solid #b4bd99;border-radius:5px;background:#fffbed;color:#18352f;font:inherit;font-size:11px}
+.chatform button,.nameform button{border:0;border-radius:5px;background:#28634f;color:white;padding:0 10px;font:inherit;font-size:11px}
+.nameform{display:flex;gap:5px}.hint{opacity:.8;font-size:10px;line-height:1.6}.pill{display:inline-block;padding:3px 6px;background:#d9e4bf;border-radius:4px;margin:2px}
+@media(max-width:760px){body{padding:7px;align-items:flex-start}.app{grid-template-columns:1fr;gap:10px}.side{display:grid;grid-template-columns:1fr 1fr}.panel.chatpanel{grid-column:1/-1}.chatlog{height:110px}.game-shell{padding:6px}.topbar{font-size:10px}.controls{padding-top:9px}.dpad{grid-template-columns:34px 34px 34px;grid-template-rows:30px 30px 30px}.action{padding:9px 10px;font-size:11px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="game-shell">
+    <div class="topbar"><span class="logo">VERDANT ONLINE</span><span id="status" class="status">Connecting…</span><span id="coords">Route 01</span></div>
+    <canvas id="game" width="768" height="528" aria-label="Game world"></canvas>
+    <div class="controls">
+      <div class="dpad" aria-label="Movement controls">
+        <button class="up" data-move="up">▲</button><button class="left" data-move="left">◀</button><button class="center" disabled>●</button><button class="right" data-move="right">▶</button><button class="down" data-move="down">▼</button>
+      </div>
+      <div class="actions"><button class="action" id="interact">A · Interact</button><button class="action" id="wave">Wave 👋</button></div>
+    </div>
+  </main>
+  <aside class="side">
+    <section class="panel"><h2>Trainer card</h2><div class="nameform"><input id="name" maxlength="16" placeholder="Trainer name"><button id="saveName">Set</button></div><p class="small">Welcome to Fernvale, a tiny online world built for exploring together.</p><div><span class="pill">Multiplayer</span><span class="pill">Autosave</span></div></section>
+    <section class="panel"><h2>Online trainers <span id="count">0</span></h2><div id="players"></div></section>
+    <section class="panel chatpanel"><h2>World chat</h2><div id="chatlog" class="chatlog" aria-live="polite"></div><form id="chatform" class="chatform"><input id="chatinput" maxlength="140" autocomplete="off" placeholder="Say something…"><button>Send</button></form><p class="hint">Be kind. Messages are visible to everyone in this room.</p></section>
+    <section class="panel"><h2>Field notes</h2><div id="notice" class="small">Use arrow keys or WASD to move. Walk through tall grass to discover the world.</div><p class="hint">Progress is saved in this browser. This prototype has live multiplayer movement and chat; creature battles, trading, accounts and persistent worlds are planned next.</p></section>
+  </aside>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const TILE=24, COLS=32, ROWS=22;
+  const statusEl=document.getElementById('status'), playersEl=document.getElementById('players'), countEl=document.getElementById('count');
+  const notice=document.getElementById('notice'), coords=document.getElementById('coords');
+  const chatlog=document.getElementById('chatlog'), chatinput=document.getElementById('chatinput');
+  const terrain=[];
+  let socket=null, myId=null, myName=localStorage.getItem('verdant_name')||'Trainer', remote={}, self={x:13,y:11,dir:'down',name:myName,color:'#f2bd76'}, emotes={}, lastStep=0, grassCooldown=0;
+  const saved=JSON.parse(localStorage.getItem('verdant_save')||'{}');
+  if(Number.isFinite(saved.x)) self.x=saved.x;
+  if(Number.isFinite(saved.y)) self.y=saved.y;
+  document.getElementById('name').value=myName;
+  // Deterministic, original map layout: grass, paths, water, trees and a village.
+  for(let y=0;y<ROWS;y++){terrain[y]=[];for(let x=0;x<COLS;x++){
+    let t='grass';
+    if(x<2||y<2||x>COLS-3||y>ROWS-3)t='tree';
+    if((x>3&&x<10&&y>3&&y<8)||(x>22&&x<29&&y>13&&y<19))t='tall';
+    if(y===11&&(x>3&&x<28))t='path';
+    if(x===16&&(y>5&&y<18))t='path';
+    if((x>5&&x<10&&y>14&&y<19))t='water';
+    if((x>19&&x<25&&y>4&&y<9))t='village';
+    if((x===16&&y===11)||(x===8&&y===11))t='path';
+    terrain[y][x]=t;
+  }}
+  // Clear spawn area
+  for(let y=9;y<14;y++)for(let x=10;x<16;x++)terrain[y][x]='path';
+  function tile(x,y){return terrain[Math.max(0,Math.min(ROWS-1,y))][Math.max(0,Math.min(COLS-1,x))]||'tree';}
+  function blocked(x,y){return ['tree','water'].includes(tile(x,y));}
+  function send(data){if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify(data));}
+  function connect(){
+    const proto=location.protocol==='https:'?'wss:':'ws:';
+    socket=new WebSocket(`${proto}//${location.host}`);
+    socket.onopen=()=>{statusEl.textContent='Online · connecting trainer';send({type:'name',name:myName});};
+    socket.onclose=()=>{statusEl.textContent='Offline · retrying';setTimeout(connect,1800);};
+    socket.onerror=()=>{statusEl.textContent='Connection issue';};
+    socket.onmessage=(event)=>{
+      let m;try{m=JSON.parse(event.data)}catch{return}
+      if(m.type==='welcome'){myId=m.id;self={...m.player,...self,name:myName};remote={};m.players.forEach(p=>{if(p.id!==myId)remote[p.id]=p});statusEl.textContent='Online';renderPlayers();broadcastMove();}
+      if(m.type==='self'){if(m.player.id===myId)self={...self,...m.player};}
+      if(m.type==='join'){if(m.player.id!==myId)remote[m.player.id]=m.player;renderPlayers();addChat('System',`${m.player.name} joined Fernvale.`);}
+      if(m.type==='move'||m.type==='rename'){if(m.player.id!==myId)remote[m.player.id]=m.player;else self={...self,...m.player};renderPlayers();}
+      if(m.type==='leave'){const p=remote[m.id];delete remote[m.id];delete emotes[m.id];renderPlayers();if(p)addChat('System',`${p.name} left.`);}
+      if(m.type==='chat')addChat(m.name,m.text);
+      if(m.type==='emote'){emotes[m.id]=m.emote;setTimeout(()=>delete emotes[m.id],1800);}
+    };
+  }
+  function broadcastMove(){send({type:'move',x:self.x,y:self.y,dir:self.dir,name:myName});}
+  function renderPlayers(){
+    const list=Object.values(remote);countEl.textContent=list.length+1;
+    playersEl.innerHTML=`<div class="playerline"><span><span class="online-dot">●</span> ${escapeHtml(myName)} (you)</span><span>here</span></div>`+
+      list.slice(0,8).map(p=>`<div class="playerline"><span><span class="online-dot">●</span> ${escapeHtml(p.name)}</span><span>online</span></div>`).join('');
+  }
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function addChat(name,text){
+    const row=document.createElement('div');row.className='chatrow';const b=document.createElement('b');b.textContent=name+':';const span=document.createElement('span');span.textContent=text;row.append(b,span);chatlog.append(row);while(chatlog.children.length>45)chatlog.firstChild.remove();chatlog.scrollTop=chatlog.scrollHeight;
+  }
+  function save(){localStorage.setItem('verdant_save',JSON.stringify({x:self.x,y:self.y}));localStorage.setItem('verdant_name',myName);}
+  function move(dir){
+    const now=Date.now();if(now-lastStep<95)return;lastStep=now;self.dir=dir;
+    let x=self.x,y=self.y;if(dir==='up')y-=1;if(dir==='down')y+=1;if(dir==='left')x-=1;if(dir==='right')x+=1;
+    if(!blocked(x,y)){self.x=x;self.y=y;coords.textContent=`Route 01 · ${Math.floor(x)},${Math.floor(y)}`;save();broadcastMove();checkGrass();}
+    draw();
+  }
+  function checkGrass(){if(tile(Math.floor(self.x),Math.floor(self.y))==='tall'&&Date.now()>grassCooldown){grassCooldown=Date.now()+4500;const found=['A tiny mossling rustles in the grass.','You spot glowing seeds near the path.','Something small scurries away into the ferns.'][Math.floor(Math.random()*3)];notice.textContent=found;}}
+  function interact(){
+    const x=Math.round(self.x)+(self.dir==='left'?-1:self.dir==='right'?1:0),y=Math.round(self.y)+(self.dir==='up'?-1:self.dir==='down'?1:0);
+    if(tile(x,y)==='village')notice.textContent='A friendly villager says: “The world is bigger when we explore together!”';
+    else if(tile(x,y)==='tall')notice.textContent='The tall grass sways. You hear a little creature nearby…';
+    else notice.textContent='You look around. Fernvale is peaceful today.';
+  }
+  function drawTile(x,y,t){
+    const px=x*TILE,py=y*TILE;
+    const colors={grass:'#83bd73',path:'#d6c18a',tall:'#4b985d',tree:'#315f49',water:'#5daeb1',village:'#d7c991'};
+    ctx.fillStyle=colors[t]||colors.grass;ctx.fillRect(px,py,TILE,TILE);
+    if(t==='grass'){ctx.fillStyle='#70ac68';ctx.fillRect(px+5,py+8,2,3);ctx.fillRect(px+17,py+17,2,3);}
+    if(t==='path'){ctx.fillStyle='#c1a975';ctx.fillRect(px+4,py+5,3,2);ctx.fillRect(px+15,py+16,4,2);}
+    if(t==='tall'){ctx.fillStyle='#367f4f';for(let i=0;i<4;i++){ctx.fillRect(px+3+i*5,py+7+(i%2)*4,2,12)}ctx.fillStyle='#a3d47d';ctx.fillRect(px+8,py+6,2,5);}
+    if(t==='tree'){ctx.fillStyle='#254c3d';ctx.fillRect(px+3,py+4,18,17);ctx.fillStyle='#477f4d';ctx.fillRect(px+5,py+2,14,14);ctx.fillStyle='#735c3f';ctx.fillRect(px+10,py+17,5,7);}
+    if(t==='water'){ctx.fillStyle='#91d3c4';ctx.fillRect(px+3,py+6,9,2);ctx.fillRect(px+13,py+16,8,2);}
+    if(t==='village'){ctx.fillStyle='#e9e2bc';ctx.fillRect(px+3,py+6,18,16);ctx.fillStyle='#a95e52';ctx.fillRect(px+1,py+3,22,6);ctx.fillStyle='#6e9b9a';ctx.fillRect(px+6,py+11,5,5);ctx.fillRect(px+14,py+11,4,11);}
+  }
+  function drawTrainer(p,isSelf){
+    const x=Math.round(p.x*TILE),y=Math.round(p.y*TILE);
+    // Drop shadow and original, compact pixel-art trainer sprite.
+    ctx.fillStyle='rgba(18,42,34,.22)';ctx.fillRect(x+4,y+17,17,5);
+    ctx.fillStyle='#f1c49b';ctx.fillRect(x+7,y+3,10,9);
+    ctx.fillStyle=isSelf?'#355b8b':'#6a5a87';ctx.fillRect(x+6,y+1,12,5);ctx.fillRect(x+5,y+4,3,4);
+    ctx.fillStyle=p.color||'#d68f62';ctx.fillRect(x+5,y+12,14,8);
+    ctx.fillStyle='#f0e5bf';ctx.fillRect(x+7,y+13,10,3);
+    ctx.fillStyle='#243c39';if(p.dir==='left')ctx.fillRect(x+7,y+7,2,2);else if(p.dir==='right')ctx.fillRect(x+15,y+7,2,2);else{ctx.fillRect(x+8,y+7,2,2);ctx.fillRect(x+14,y+7,2,2);}
+    ctx.fillStyle='#31473d';ctx.fillRect(x+6,y+20,5,4);ctx.fillRect(x+14,y+20,5,4);
+    const label=String(p.name||'Trainer').slice(0,16);ctx.font='bold 10px monospace';const w=ctx.measureText(label).width+8;
+    ctx.fillStyle='rgba(21,48,42,.85)';ctx.fillRect(x+11-w/2,y-12,w,11);ctx.fillStyle='#fff5d9';ctx.textAlign='center';ctx.fillText(label,x+11,y-4);
+  }
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)drawTile(x,y,terrain[y][x]);
+    // Little flowers and signpost, deliberately original decorations.
+    ctx.fillStyle='#f3d77c';[[4,5],[11,7],[27,10],[23,17],[5,17],[28,5]].forEach(([x,y])=>{ctx.fillRect(x*TILE+9,y*TILE+9,4,4);ctx.fillStyle='#fff0b2';ctx.fillRect(x*TILE+10,y*TILE+7,2,2);ctx.fillStyle='#f3d77c';});
+    ctx.fillStyle='#795b3c';ctx.fillRect(17*TILE+8,10*TILE+7,8,15);ctx.fillStyle='#f0d9a0';ctx.fillRect(17*TILE+2,10*TILE+4,20,8);ctx.fillStyle='#304e3f';ctx.font='6px monospace';ctx.textAlign='center';ctx.fillText('FERN',17*TILE+12,10*TILE+10);
+    // Render other players first, local player last.
+    Object.values(remote).forEach(p=>{drawTrainer(p,false);if(emotes[p.id]){ctx.fillStyle='#fff1ad';ctx.font='bold 16px monospace';ctx.fillText(emotes[p.id]==='wave'?'👋':emotes[p.id]==='heart'?'♥':emotes[p.id]==='!'?'!':'…',p.x*TILE+12,p.y*TILE-17);}});
+    drawTrainer(self,true);
+    // Light frame and simple location compass
+    ctx.strokeStyle='rgba(20,49,41,.45)';ctx.lineWidth=2;ctx.strokeRect(1,1,canvas.width-2,canvas.height-2);
+  }
+  document.addEventListener('keydown',e=>{
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D'].includes(e.key)&&document.activeElement.tagName!=='INPUT'){e.preventDefault();const k=e.key.toLowerCase();move(k==='arrowup'||k==='w'?'up':k==='arrowdown'||k==='s'?'down':k==='arrowleft'||k==='a'?'left':'right');}
+    if(e.key===' '&&document.activeElement.tagName!=='INPUT'){e.preventDefault();interact();}
+  });
+  document.querySelectorAll('[data-move]').forEach(btn=>{
+    const start=e=>{e.preventDefault();move(btn.dataset.move);};
+    btn.addEventListener('pointerdown',start);btn.addEventListener('click',start);
+  });
+  document.getElementById('interact').addEventListener('click',interact);
+  document.getElementById('wave').addEventListener('click',()=>{send({type:'emote',emote:'wave'});emotes[myId]='wave';setTimeout(()=>{delete emotes[myId];draw()},1800);});
+  document.getElementById('saveName').addEventListener('click',()=>{
+    myName=document.getElementById('name').value.trim().slice(0,16)||'Trainer';document.getElementById('name').value=myName;
+    localStorage.setItem('verdant_name',myName);send({type:'name',name:myName});renderPlayers();notice.textContent=`Your trainer name is now ${myName}.`;
+  });
+  document.getElementById('chatform').addEventListener('submit',e=>{e.preventDefault();const text=chatinput.value.trim();if(text){send({type:'chat',text});addChat(myName,text);chatinput.value='';}});
+  window.addEventListener('beforeunload',save);
+  draw();renderPlayers();connect();
+})();
+</script>
+</body>
+</html>
